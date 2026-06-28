@@ -32,34 +32,20 @@ export async function GET(
     "X-Payment-Accepted": "true",
   };
 
-  const cmcKey = process.env.CMC_API_KEY;
-  if (!cmcKey) {
-    return Response.json({
-      data: {
-        [symbol]: {
-          quote: {
-            USD: {
-              price: 50_000 + Math.random() * 5_000,
-              volume_24h: 1_000_000_000,
-              percent_change_24h: (Math.random() - 0.5) * 10,
-              last_updated: new Date().toISOString(),
-            },
-          },
-        },
-      },
-      _source: "mock",
-      _proof: outcome.result.proofRef,
-      _privacy: outcome.result.mode,
-    }, { headers });
+  // REAL price from Coinbase's public spot endpoint (no API key). Not mocked.
+  try {
+    const r = await fetch(`https://api.coinbase.com/v2/prices/${encodeURIComponent(symbol)}-USD/spot`, {
+      headers: { Accept: "application/json" },
+    });
+    const j = (await r.json()) as { data?: { amount?: string } };
+    const price = Number(j?.data?.amount);
+    if (!Number.isFinite(price)) throw new Error(`no price for ${symbol}`);
+    return Response.json(
+      { symbol, price, currency: "USD", source: "coinbase", asOf: new Date().toISOString(),
+        _proof: outcome.result.proofRef, _privacy: outcome.result.mode },
+      { headers },
+    );
+  } catch {
+    return Response.json({ error: "upstream price unavailable", symbol }, { status: 502, headers });
   }
-
-  const upstream = await fetch(
-    `https://pro-api.coinmarketcap.com/v2/cryptocurrency/quotes/latest?symbol=${encodeURIComponent(symbol)}`,
-    { headers: { "X-CMC_PRO_API_KEY": cmcKey, Accept: "application/json" } },
-  );
-  const body = await upstream.text();
-  return new Response(body, {
-    status: upstream.status,
-    headers: { "Content-Type": "application/json", ...headers },
-  });
 }

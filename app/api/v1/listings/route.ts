@@ -3,7 +3,6 @@ import { build402, verifyPayment, gateConfig, PAYTO } from "@/lib/gateway/gate";
 export const runtime = "edge";
 
 const PRICE_LISTINGS = 2_000; // 0.002 tier
-const MOCK_SYMBOLS = ["BTC","ETH","XLM","USDC","BNB","ADA","XRP","DOGE","AVAX","LINK"] as const;
 
 export async function GET(req: Request): Promise<Response> {
   const { pathname } = new URL(req.url);
@@ -28,27 +27,26 @@ export async function GET(req: Request): Promise<Response> {
     "X-Payment-Accepted": "true",
   };
 
-  const cmcKey = process.env.CMC_API_KEY;
-  if (!cmcKey) {
-    return Response.json({
-      data: Array.from({ length: 10 }, (_, i) => ({
-        rank: i + 1,
-        symbol: MOCK_SYMBOLS[i],
-        price: 1_000 + Math.random() * 50_000,
-      })),
-      _source: "mock",
-      _proof: outcome.result.proofRef,
-      _privacy: outcome.result.mode,
-    }, { headers });
+  // REAL top-10 by market cap from CoinGecko's public API (no key). Not mocked.
+  try {
+    const r = await fetch(
+      "https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&order=market_cap_desc&per_page=10&page=1",
+      { headers: { Accept: "application/json" } },
+    );
+    const arr = (await r.json()) as Array<{
+      market_cap_rank: number; symbol: string; name: string; current_price: number; market_cap: number;
+    }>;
+    if (!Array.isArray(arr)) throw new Error("bad listings response");
+    const data = arr.map((x) => ({
+      rank: x.market_cap_rank, symbol: String(x.symbol).toUpperCase(), name: x.name,
+      price: x.current_price, market_cap: x.market_cap,
+    }));
+    return Response.json(
+      { data, source: "coingecko", asOf: new Date().toISOString(),
+        _proof: outcome.result.proofRef, _privacy: outcome.result.mode },
+      { headers },
+    );
+  } catch {
+    return Response.json({ error: "upstream listings unavailable" }, { status: 502, headers });
   }
-
-  const upstream = await fetch(
-    "https://pro-api.coinmarketcap.com/v1/cryptocurrency/listings/latest?limit=10",
-    { headers: { "X-CMC_PRO_API_KEY": cmcKey, Accept: "application/json" } },
-  );
-  const body = await upstream.text();
-  return new Response(body, {
-    status: upstream.status,
-    headers: { "Content-Type": "application/json", ...headers },
-  });
 }
