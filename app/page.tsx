@@ -1,4 +1,5 @@
 import { ComparisonView } from "@/components/ComparisonView";
+import { RealProof } from "@/components/RealProof";
 
 export default function Home() {
   return (
@@ -96,9 +97,12 @@ export default function Home() {
         <div className="mb-6">
           <h2 className="text-lg font-semibold text-slate-100">Live Demo</h2>
           <p className="text-sm text-slate-400 mt-1">
-            Click &ldquo;Trigger Private Payment&rdquo; to fire one payment through both flows
-            and compare what each one leaks.
+            Generate a <strong className="text-slate-200">real</strong> zero-knowledge proof in your browser and verify
+            it on Stellar testnet — then compare what a public payment leaks vs. what null-402 reveals.
           </p>
+        </div>
+        <div className="mb-8">
+          <RealProof />
         </div>
         <ComparisonView />
       </section>
